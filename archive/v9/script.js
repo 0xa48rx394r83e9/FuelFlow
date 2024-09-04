@@ -1,6 +1,6 @@
 // Configuration object
 const config = {
-    map: {
+    mapSettings: {
         baseFillColor: "#FEB24C",
         strokeColor: "white",
         strokeWidth: 0.5,
@@ -8,6 +8,9 @@ const config = {
         initialScale: 1,
         initialTranslateX: 0,
         initialTranslateY: 0,
+        currentScale: 1,
+        currentTranslateX: 0,
+        currentTranslateY: 0,
     },
     visualization: {
         methods: [
@@ -18,44 +21,31 @@ const config = {
             "numbers",
             "icons",
         ],
+        currentMethods: new Set(["gradient"]),
         maxPrice: 2.5,
-        gradient: {
-            densityRange: { min: 50, max: 1 },
-        },
-        barChart: {
-            width: 10,
-            maxHeight: 50,
-        },
-        pieChart: {
-            radius: 20,
-        },
-        icons: {
-            maxSize: 30,
-        },
+        gradientDensityRange: { min: 50, max: 1 },
+        barChartSettings: { width: 10, maxHeight: 50 },
+        pieChartSettings: { radius: 20 },
+        iconSettings: { maxSize: 30 },
     },
-    labels: {
+    labelSettings: {
         showCountryNames: true,
         showFuelPrices: true,
         showCentroids: false,
-        fontSize: {
-            countryName: 12,
-            fuelPrice: 10,
-        },
-        positioning: {
-            repulsionStrength: 25,
-            repulsionFalloff: 2,
-            borderForce: 5,
-            maxRepulsionDistance: 75,
-            overlapDistance: 30,
-        },
+        fontSize: { countryName: 12, fuelPrice: 10 },
+        repulsionStrength: 25,
+        repulsionFalloff: 2,
+        borderForce: 5,
+        maxRepulsionDistance: 75,
+        overlapDistance: 30,
     },
-    optimization: {
+    optimizationSettings: {
         iterations: 50,
         repulsionStrengthRange: { min: 10, max: 60 },
         repulsionFalloffRange: { min: 1, max: 4 },
         borderForceRange: { min: 1, max: 11 },
     },
-    interaction: {
+    interactionSettings: {
         minScale: 0.5,
         maxScale: 5,
         zoomSpeed: 0.075,
@@ -63,39 +53,38 @@ const config = {
     },
 };
 
-// State object for runtime variables
-const state = {
-    isDragging: false,
-    lastTouchDistance: 0,
-    currentScale: config.map.initialScale,
-    currentTranslateX: config.map.initialTranslateX,
-    currentTranslateY: config.map.initialTranslateY,
-    devMode: false,
-    currentVisualizationMethods: new Set(["gradient"]),
-};
+// For zooming and panning
+let isDragging = false;
+let lastTouchDistance = 0;
+let startX, startY;
+let originalTransform = { x: 0, y: 0, scale: 1 };
 
 // DOM elements
 const svg = document.getElementById("map");
 const svgNS = "http://www.w3.org/2000/svg";
 const log = document.getElementById("log");
-const controlPanel = {
-    devModeToggle: document.getElementById("devModeToggle"),
-    resetMapButton: document.getElementById("resetMap"),
-    countryNamesToggle: document.getElementById("countryNamesToggle"),
-    fuelPricesToggle: document.getElementById("fuelPricesToggle"),
-    centroidsToggle: document.getElementById("centroidsToggle"),
-    repulsionStrengthSlider: document.getElementById("repulsionStrength"),
-    repulsionFalloffSlider: document.getElementById("repulsionFalloff"),
-    borderForceSlider: document.getElementById("borderForce"),
-    visualizationToggles: {},
-};
 
-// Initialize visualization toggles
-config.visualization.methods.forEach((method) => {
-    controlPanel.visualizationToggles[method] = document.getElementById(
-        `${method}Toggle`
-    );
-});
+// Control panel elements
+const devModeToggle = document.getElementById("devModeToggle");
+const resetMapButton = document.getElementById("resetMap");
+const countryNamesToggle = document.getElementById("countryNamesToggle");
+const fuelPricesToggle = document.getElementById("fuelPricesToggle");
+const centroidsToggle = document.getElementById("centroidsToggle");
+const repulsionStrengthSlider = document.getElementById("repulsionStrength");
+const repulsionFalloffSlider = document.getElementById("repulsionFalloff");
+const borderForceSlider = document.getElementById("borderForce");
+
+// Visualization toggles
+const visualizationToggles = config.visualization.methods.reduce(
+    (acc, method) => {
+        acc[method] = document.getElementById(`${method}Toggle`);
+        return acc;
+    },
+    {}
+);
+
+// State variables
+let devMode = false;
 
 // Fuel prices data
 const fuelPrices = {
@@ -215,9 +204,9 @@ function addToLog(message) {
 }
 
 function toggleDevMode() {
-    state.devMode = !state.devMode;
-    log.style.display = state.devMode ? "block" : "none";
-    controlPanel.devModeToggle.classList.toggle("active");
+    devMode = !devMode;
+    log.style.display = devMode ? "block" : "none";
+    devModeToggle.classList.toggle("active");
 }
 
 function resetMap() {
@@ -225,10 +214,10 @@ function resetMap() {
 }
 
 function toggleVisualization(method) {
-    if (state.currentVisualizationMethods.has(method)) {
-        state.currentVisualizationMethods.delete(method);
+    if (config.visualization.currentMethods.has(method)) {
+        config.visualization.currentMethods.delete(method);
     } else {
-        state.currentVisualizationMethods.add(method);
+        config.visualization.currentMethods.add(method);
     }
     updateVisualization();
 }
@@ -237,13 +226,13 @@ function updateVisualization() {
     config.visualization.methods.forEach((method) => {
         const elements = svg.querySelectorAll(`.visualization.${method}`);
         elements.forEach((el) => {
-            el.style.display = state.currentVisualizationMethods.has(method)
+            el.style.display = config.visualization.currentMethods.has(method)
                 ? "inline"
                 : "none";
         });
-        controlPanel.visualizationToggles[method].classList.toggle(
+        visualizationToggles[method].classList.toggle(
             "active",
-            state.currentVisualizationMethods.has(method)
+            config.visualization.currentMethods.has(method)
         );
     });
 }
@@ -254,49 +243,48 @@ function toggleLoadingAnimation(show) {
 }
 
 function toggleCountryNames() {
-    config.labels.showCountryNames = !config.labels.showCountryNames;
-    controlPanel.countryNamesToggle.classList.toggle(
+    config.labelSettings.showCountryNames =
+        !config.labelSettings.showCountryNames;
+    countryNamesToggle.classList.toggle(
         "active",
-        config.labels.showCountryNames
+        config.labelSettings.showCountryNames
     );
     updateLabels();
 }
 
 function toggleFuelPrices() {
-    config.labels.showFuelPrices = !config.labels.showFuelPrices;
-    controlPanel.fuelPricesToggle.classList.toggle(
+    config.labelSettings.showFuelPrices = !config.labelSettings.showFuelPrices;
+    fuelPricesToggle.classList.toggle(
         "active",
-        config.labels.showFuelPrices
+        config.labelSettings.showFuelPrices
     );
     updateLabels();
 }
 
 function toggleCentroids() {
-    config.labels.showCentroids = !config.labels.showCentroids;
-    controlPanel.centroidsToggle.classList.toggle("active");
+    config.labelSettings.showCentroids = !config.labelSettings.showCentroids;
+    centroidsToggle.classList.toggle("active");
     updateLabels();
 }
 
 function updateRepulsionStrength(event) {
-    config.labels.positioning.repulsionStrength = parseFloat(
-        event.target.value
-    );
+    config.labelSettings.repulsionStrength = parseFloat(event.target.value);
     updateLabels();
 }
 
 function updateRepulsionFalloff(event) {
-    config.labels.positioning.repulsionFalloff = parseFloat(event.target.value);
+    config.labelSettings.repulsionFalloff = parseFloat(event.target.value);
     updateLabels();
 }
 
 function updateBorderForce(event) {
-    config.labels.positioning.borderForce = parseFloat(event.target.value);
+    config.labelSettings.borderForce = parseFloat(event.target.value);
     updateLabels();
 }
 
 function projectCoordinates(coords) {
-    const x = (coords[0] + 20) * config.map.scaleFactor;
-    const y = (30 - coords[1]) * config.map.scaleFactor;
+    const x = (coords[0] + 20) * config.mapSettings.scaleFactor;
+    const y = (30 - coords[1]) * config.mapSettings.scaleFactor;
     return [x, y];
 }
 
@@ -332,7 +320,7 @@ function drawPolygon(rings) {
 
 function createGradientPattern(price, type) {
     const { min: minDensity, max: maxDensity } =
-        config.visualization.gradient.densityRange;
+        config.visualization.gradientDensityRange;
     const density =
         minDensity +
         (maxDensity - minDensity) * (price / config.visualization.maxPrice);
@@ -412,9 +400,9 @@ function centerMap(boundingBox) {
     }
 
     setTransform(translateX, translateY, scale);
-    config.map.initialScale = scale;
-    config.map.initialTranslateX = translateX;
-    config.map.initialTranslateY = translateY;
+    config.mapSettings.initialScale = scale;
+    config.mapSettings.initialTranslateX = translateX;
+    config.mapSettings.initialTranslateY = translateY;
 
     addToLog(
         `Map centered. ViewBox: ${viewBox}, Scale: ${scale}, TranslateX: ${translateX}, TranslateY: ${translateY}`
@@ -485,9 +473,9 @@ function processMapData(data) {
 function renderCountry(feature, standardName) {
     const path = document.createElementNS(svgNS, "path");
     path.setAttribute("d", drawCountry(feature.geometry));
-    path.setAttribute("fill", config.map.baseFillColor);
-    path.setAttribute("stroke", config.map.strokeColor);
-    path.setAttribute("stroke-width", config.map.strokeWidth);
+    path.setAttribute("fill", config.mapSettings.baseFillColor);
+    path.setAttribute("stroke", config.mapSettings.strokeColor);
+    path.setAttribute("stroke-width", config.mapSettings.strokeWidth);
     path.setAttribute("id", `country-${standardName.replace(/\s+/g, "-")}`);
     svg.appendChild(path);
 
@@ -512,7 +500,7 @@ function renderFuelVisualizations(feature, standardName) {
     Object.entries(visualizations).forEach(([method, renderFunc]) => {
         const group = document.createElementNS(svgNS, "g");
         group.setAttribute("class", `visualization ${method}`);
-        group.style.display = state.currentVisualizationMethods.has(method)
+        group.style.display = config.visualization.currentMethods.has(method)
             ? "inline"
             : "none";
         const elements = renderFunc();
@@ -567,7 +555,8 @@ function renderColorScale(feature, petrol, diesel) {
 }
 
 function renderBarChart(cx, cy, petrol, diesel) {
-    const { width: barWidth, maxHeight } = config.visualization.barChart;
+    const { width: barWidth, maxHeight } =
+        config.visualization.barChartSettings;
     const maxPrice = config.visualization.maxPrice;
 
     const petrolHeight = (petrol / maxPrice) * maxHeight;
@@ -591,7 +580,7 @@ function renderBarChart(cx, cy, petrol, diesel) {
 }
 
 function renderPieChart(cx, cy, petrol, diesel) {
-    const { radius } = config.visualization.pieChart;
+    const { radius } = config.visualization.pieChartSettings;
     const total = petrol + diesel;
     const petrolAngle = (petrol / total) * 2 * Math.PI;
 
@@ -637,7 +626,7 @@ function renderNumbers(cx, cy, petrol, diesel) {
 }
 
 function renderIcons(cx, cy, petrol, diesel) {
-    const { maxSize } = config.visualization.icons;
+    const { maxSize } = config.visualization.iconSettings;
     const maxPrice = config.visualization.maxPrice;
 
     const petrolSize = (petrol / maxPrice) * maxSize;
@@ -701,10 +690,10 @@ function calculateLabelPositions() {
             .replace(/-/g, " ");
 
         let labelHeight = 0;
-        if (config.labels.showCountryNames)
-            labelHeight += config.labels.fontSize.countryName;
-        if (config.labels.showFuelPrices && fuelPrices[countryName])
-            labelHeight += config.labels.fontSize.fuelPrice;
+        if (config.labelSettings.showCountryNames)
+            labelHeight += config.labelSettings.fontSize.countryName;
+        if (config.labelSettings.showFuelPrices && fuelPrices[countryName])
+            labelHeight += config.labelSettings.fontSize.fuelPrice;
 
         labelPositions.push({
             name: countryName,
@@ -730,7 +719,7 @@ function applyGravitation(labelPositions) {
         repulsionFalloff,
         borderForce,
         maxRepulsionDistance,
-    } = config.labels.positioning;
+    } = config.labelSettings;
 
     labelPositions.forEach((label, i) => {
         let fx = 0,
@@ -816,7 +805,7 @@ function renderLabels(labelPositions) {
 
         let yOffset = 0;
 
-        if (config.labels.showCountryNames) {
+        if (config.labelSettings.showCountryNames) {
             const countryName = document.createElementNS(svgNS, "text");
             countryName.textContent = label.name;
             countryName.setAttribute("x", 0);
@@ -824,13 +813,13 @@ function renderLabels(labelPositions) {
             countryName.setAttribute("class", "country-name");
             countryName.setAttribute(
                 "font-size",
-                config.labels.fontSize.countryName
+                config.labelSettings.fontSize.countryName
             );
             group.appendChild(countryName);
-            yOffset += config.labels.fontSize.countryName;
+            yOffset += config.labelSettings.fontSize.countryName;
         }
 
-        if (config.labels.showFuelPrices && fuelPrices[label.name]) {
+        if (config.labelSettings.showFuelPrices && fuelPrices[label.name]) {
             const { petrol, diesel } = fuelPrices[label.name];
             const fuelPricesText = document.createElementNS(svgNS, "text");
             fuelPricesText.textContent = `P: €${petrol.toFixed(
@@ -841,14 +830,14 @@ function renderLabels(labelPositions) {
             fuelPricesText.setAttribute("class", "fuel-prices");
             fuelPricesText.setAttribute(
                 "font-size",
-                config.labels.fontSize.fuelPrice
+                config.labelSettings.fontSize.fuelPrice
             );
             group.appendChild(fuelPricesText);
         }
 
         svg.appendChild(group);
 
-        if (config.labels.showCentroids) {
+        if (config.labelSettings.showCentroids) {
             const centroid = document.createElementNS(svgNS, "circle");
             centroid.setAttribute("cx", label.originalX);
             centroid.setAttribute("cy", label.originalY);
@@ -866,12 +855,12 @@ function optimizeSliderValues() {
         repulsionStrengthRange,
         repulsionFalloffRange,
         borderForceRange,
-    } = config.optimization;
+    } = config.optimizationSettings;
     let bestScore = -Infinity;
     let bestValues = {
-        repulsionStrength: config.labels.positioning.repulsionStrength,
-        repulsionFalloff: config.labels.positioning.repulsionFalloff,
-        borderForce: config.labels.positioning.borderForce,
+        repulsionStrength: config.labelSettings.repulsionStrength,
+        repulsionFalloff: config.labelSettings.repulsionFalloff,
+        borderForce: config.labelSettings.borderForce,
     };
 
     for (let i = 0; i < iterations; i++) {
@@ -887,9 +876,9 @@ function optimizeSliderValues() {
             Math.random() * (borderForceRange.max - borderForceRange.min) +
             borderForceRange.min;
 
-        config.labels.positioning.repulsionStrength = testRepulsionStrength;
-        config.labels.positioning.repulsionFalloff = testRepulsionFalloff;
-        config.labels.positioning.borderForce = testBorderForce;
+        config.labelSettings.repulsionStrength = testRepulsionStrength;
+        config.labelSettings.repulsionFalloff = testRepulsionFalloff;
+        config.labelSettings.borderForce = testBorderForce;
 
         const labelPositions = calculateLabelPositions();
         const score = evaluateLabelPositioning(labelPositions);
@@ -904,7 +893,7 @@ function optimizeSliderValues() {
         }
     }
 
-    Object.assign(config.labels.positioning, bestValues);
+    Object.assign(config.labelSettings, bestValues);
     console.log("Optimized values:", bestValues);
 }
 
@@ -963,26 +952,23 @@ function initializeUI() {
     updateVisualization();
 
     // Initialize toggle states
-    controlPanel.countryNamesToggle.classList.toggle(
+    countryNamesToggle.classList.toggle(
         "active",
-        config.labels.showCountryNames
+        config.labelSettings.showCountryNames
     );
-    controlPanel.fuelPricesToggle.classList.toggle(
+    fuelPricesToggle.classList.toggle(
         "active",
-        config.labels.showFuelPrices
+        config.labelSettings.showFuelPrices
     );
-    controlPanel.centroidsToggle.classList.toggle(
+    centroidsToggle.classList.toggle(
         "active",
-        config.labels.showCentroids
+        config.labelSettings.showCentroids
     );
 
     // Initialize slider values
-    controlPanel.repulsionStrengthSlider.value =
-        config.labels.positioning.repulsionStrength;
-    controlPanel.repulsionFalloffSlider.value =
-        config.labels.positioning.repulsionFalloff;
-    controlPanel.borderForceSlider.value =
-        config.labels.positioning.borderForce;
+    repulsionStrengthSlider.value = config.labelSettings.repulsionStrength;
+    repulsionFalloffSlider.value = config.labelSettings.repulsionFalloff;
+    borderForceSlider.value = config.labelSettings.borderForce;
 
     // Add zoom control buttons
     const zoomControls = document.createElement("div");
@@ -1015,32 +1001,34 @@ function enableZoomPan() {
 function startDrag(e) {
     if (e.type === "mousedown" && e.button !== 0) return; // Only start drag on left mouse button
     svg.style.cursor = "grabbing";
-    state.isDragging = true;
-    state.lastX = e.clientX || e.touches[0].clientX;
-    state.lastY = e.clientY || e.touches[0].clientY;
+    config.interactionSettings.isDragging = true;
+    config.interactionSettings.lastX = e.clientX || e.touches[0].clientX;
+    config.interactionSettings.lastY = e.clientY || e.touches[0].clientY;
 }
 
 function drag(e) {
-    if (!state.isDragging) return;
+    if (!config.interactionSettings.isDragging) return;
     const clientX = e.clientX || e.touches[0].clientX;
     const clientY = e.clientY || e.touches[0].clientY;
-    const dx = clientX - state.lastX;
-    const dy = clientY - state.lastY;
-    state.lastX = clientX;
-    state.lastY = clientY;
+    const dx = clientX - config.interactionSettings.lastX;
+    const dy = clientY - config.interactionSettings.lastY;
+    config.interactionSettings.lastX = clientX;
+    config.interactionSettings.lastY = clientY;
 
-    const { currentTranslateX, currentTranslateY, currentScale } = state;
+    const { currentTranslateX, currentTranslateY, currentScale } =
+        config.mapSettings;
     setTransform(currentTranslateX + dx, currentTranslateY + dy, currentScale);
 }
 
 function endDrag() {
-    state.isDragging = false;
+    config.interactionSettings.isDragging = false;
     svg.style.cursor = "grab";
 }
 
 function handleWheel(e) {
     e.preventDefault();
-    const scaleFactor = 1 - Math.sign(e.deltaY) * config.interaction.zoomSpeed;
+    const scaleFactor =
+        1 - Math.sign(e.deltaY) * config.interactionSettings.zoomSpeed;
     zoomTowardsPoint(e.clientX, e.clientY, scaleFactor);
 }
 
@@ -1049,11 +1037,12 @@ function handleTouchStart(e) {
     if (e.touches.length === 2) {
         const touch1 = e.touches[0];
         const touch2 = e.touches[1];
-        state.lastTouchDistance = Math.hypot(
+        config.interactionSettings.lastTouchDistance = Math.hypot(
             touch2.clientX - touch1.clientX,
             touch2.clientY - touch1.clientY
         );
-        state.lastTouchY = (touch1.clientY + touch2.clientY) / 2;
+        config.interactionSettings.lastTouchY =
+            (touch1.clientY + touch2.clientY) / 2;
     } else if (e.touches.length === 1) {
         startDrag(e.touches[0]);
     }
@@ -1070,15 +1059,16 @@ function handleTouchMove(e) {
         );
         const newTouchY = (touch1.clientY + touch2.clientY) / 2;
 
-        // Reverse pinch-zoom direction
-        const scaleFactor = state.lastTouchDistance / newDistance;
-        state.lastTouchDistance = newDistance;
+        // Handle pinch zoom
+        const scaleFactor =
+            newDistance / config.interactionSettings.lastTouchDistance;
+        config.interactionSettings.lastTouchDistance = newDistance;
 
-        // Handle vertical two-finger swipe for zoom (reversed)
-        const deltaY = newTouchY - state.lastTouchY;
+        // Handle vertical two-finger swipe for zoom
+        const deltaY = newTouchY - config.interactionSettings.lastTouchY;
         const verticalScaleFactor =
-            1 + deltaY * config.interaction.touchZoomSpeed;
-        state.lastTouchY = newTouchY;
+            1 - deltaY * config.interactionSettings.touchZoomSpeed;
+        config.interactionSettings.lastTouchY = newTouchY;
 
         const centerX = (touch1.clientX + touch2.clientX) / 2;
         const centerY = (touch1.clientY + touch2.clientY) / 2;
@@ -1101,17 +1091,15 @@ function zoomTowardsPoint(clientX, clientY, scaleFactor) {
     const mouseX = clientX - rect.left;
     const mouseY = clientY - rect.top;
 
-    const { currentTranslateX, currentTranslateY, currentScale } = state;
-    const newScale = currentScale * scaleFactor;
-
-    if (
-        newScale < config.interaction.minScale ||
-        newScale > config.interaction.maxScale
-    ) {
-        // If we've reached the zoom limit, transition to drag
-        transitionToDrag(clientX, clientY, newScale);
-        return;
-    }
+    const { currentTranslateX, currentTranslateY, currentScale } =
+        config.mapSettings;
+    const newScale = Math.min(
+        Math.max(
+            currentScale * scaleFactor,
+            config.interactionSettings.minScale
+        ),
+        config.interactionSettings.maxScale
+    );
 
     // Calculate new position to zoom towards mouse
     const dx = (mouseX - currentTranslateX) * (1 - scaleFactor);
@@ -1120,36 +1108,33 @@ function zoomTowardsPoint(clientX, clientY, scaleFactor) {
     setTransform(currentTranslateX + dx, currentTranslateY + dy, newScale);
 }
 
-function transitionToDrag(clientX, clientY, attemptedScale) {
-    // Determine the direction of the attempted zoom
-    const zoomingIn = attemptedScale > state.currentScale;
-
-    // Calculate the overflow amount
-    const overflow = zoomingIn
-        ? attemptedScale - config.interaction.maxScale
-        : config.interaction.minScale - attemptedScale;
-
-    // Convert the overflow to a drag distance
-    const dragDistance = overflow * 50; // You can adjust this multiplier to change sensitivity
-
-    // Determine drag direction based on zoom direction
-    const dragFactor = zoomingIn ? -1 : 1;
-
-    // Perform a small drag in the appropriate direction
-    const dx = dragFactor * dragDistance;
-    const dy = dragFactor * dragDistance;
-
-    setTransform(
-        state.currentTranslateX + dx,
-        state.currentTranslateY + dy,
-        state.currentScale
+function zoom(mouseX, mouseY, scaleFactor) {
+    const { currentTranslateX, currentTranslateY, currentScale } =
+        config.mapSettings;
+    const newScale = Math.min(
+        Math.max(
+            currentScale * scaleFactor,
+            config.interactionSettings.minScale
+        ),
+        config.interactionSettings.maxScale
     );
+
+    // Calculate new position to zoom towards mouse
+    const dx = (mouseX - currentTranslateX) * (1 - scaleFactor);
+    const dy = (mouseY - currentTranslateY) * (1 - scaleFactor);
+
+    setTransform(currentTranslateX + dx, currentTranslateY + dy, newScale);
+}
+
+function getTransform() {
+    const transform = new DOMMatrix(window.getComputedStyle(svg).transform);
+    return { x: transform.e, y: transform.f, scale: transform.a };
 }
 
 function setTransform(x, y, scale) {
-    state.currentTranslateX = x;
-    state.currentTranslateY = y;
-    state.currentScale = scale;
+    config.mapSettings.currentTranslateX = x;
+    config.mapSettings.currentTranslateY = y;
+    config.mapSettings.currentScale = scale;
     svg.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
 }
 
@@ -1159,7 +1144,7 @@ function zoomIn() {
     zoomTowardsPoint(
         rect.left + rect.width / 2,
         rect.top + rect.height / 2,
-        1 + config.interaction.zoomSpeed
+        1 + config.interactionSettings.zoomSpeed
     );
 }
 
@@ -1169,39 +1154,31 @@ function zoomOut() {
     zoomTowardsPoint(
         rect.left + rect.width / 2,
         rect.top + rect.height / 2,
-        1 - config.interaction.zoomSpeed
+        1 - config.interactionSettings.zoomSpeed
     );
 }
 
 function resetZoom() {
     setTransform(
-        config.map.initialTranslateX,
-        config.map.initialTranslateY,
-        config.map.initialScale
+        config.mapSettings.initialTranslateX,
+        config.mapSettings.initialTranslateY,
+        config.mapSettings.initialScale
     );
 }
 
 // Event listeners
-controlPanel.devModeToggle.addEventListener("click", toggleDevMode);
-controlPanel.resetMapButton.addEventListener("click", resetMap);
-controlPanel.countryNamesToggle.addEventListener("click", toggleCountryNames);
-controlPanel.fuelPricesToggle.addEventListener("click", toggleFuelPrices);
-controlPanel.centroidsToggle.addEventListener("click", toggleCentroids);
-controlPanel.repulsionStrengthSlider.addEventListener(
-    "input",
-    updateRepulsionStrength
-);
-controlPanel.repulsionFalloffSlider.addEventListener(
-    "input",
-    updateRepulsionFalloff
-);
-controlPanel.borderForceSlider.addEventListener("input", updateBorderForce);
+devModeToggle.addEventListener("click", toggleDevMode);
+resetMapButton.addEventListener("click", resetMap);
+countryNamesToggle.addEventListener("click", toggleCountryNames);
+fuelPricesToggle.addEventListener("click", toggleFuelPrices);
+centroidsToggle.addEventListener("click", toggleCentroids);
+repulsionStrengthSlider.addEventListener("input", updateRepulsionStrength);
+repulsionFalloffSlider.addEventListener("input", updateRepulsionFalloff);
+borderForceSlider.addEventListener("input", updateBorderForce);
 
-Object.entries(controlPanel.visualizationToggles).forEach(
-    ([method, toggle]) => {
-        toggle.addEventListener("click", () => toggleVisualization(method));
-    }
-);
+Object.entries(visualizationToggles).forEach(([method, toggle]) => {
+    toggle.addEventListener("click", () => toggleVisualization(method));
+});
 
 // Initialize UI
 updateVisualization();
