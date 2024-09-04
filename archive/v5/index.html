@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+            Enhanced Map of Africa with Toggleable Fuel Price Gradients
+        </title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div id="map-container">
+            <svg id="map" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <pattern
+                        id="petrolPattern"
+                        patternUnits="userSpaceOnUse"
+                        width="10"
+                        height="10"
+                    >
+                        <line
+                            x1="0"
+                            y1="10"
+                            x2="10"
+                            y2="0"
+                            stroke="red"
+                            stroke-width="1"
+                        />
+                    </pattern>
+                    <pattern
+                        id="dieselPattern"
+                        patternUnits="userSpaceOnUse"
+                        width="10"
+                        height="10"
+                    >
+                        <line
+                            x1="0"
+                            y1="0"
+                            x2="10"
+                            y2="10"
+                            stroke="blue"
+                            stroke-width="1"
+                        />
+                    </pattern>
+                </defs>
+            </svg>
+            <div id="buttons">
+                <button class="circle-button" id="gradientButton" title="Toggle Gradient Lines">🌈</button>
+                <button class="circle-button" id="vizButton" title="Toggle Visualization Method">V</button>
+                <button class="circle-button" id="devModeButton" title="Toggle Dev Mode">🛠️</button>
+                <button class="circle-button" id="resetButton" title="Reset Map">🔄</button>
+            </div>
+            </div>
+            <div id="log"></div>
+        </div>
+        <script src="script.js"></script>
+    </body>
+</html>

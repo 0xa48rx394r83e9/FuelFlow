@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Map of Africa (Final Version)</title>
+        <style>
+            #map {
+                max-width: 100%;
+                height: 600px;
+                background-color: #f0f0f0;
+            }
+            #log {
+                font-family: monospace;
+                white-space: pre-wrap;
+                max-height: 300px;
+                overflow-y: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <svg
+            id="map"
+            viewBox="-100 -100 1200 1200"
+            xmlns="http://www.w3.org/2000/svg"
+        ></svg>
+        <div id="log"></div>
+
+        <script>
+            const svg = document.getElementById("map");
+            const svgNS = "http://www.w3.org/2000/svg";
+            const log = document.getElementById("log");
+
+            function addToLog(message) {
+                console.log(message);
+                log.textContent += message + "\n";
+                log.scrollTop = log.scrollHeight;
+            }
+
+            function projectCoordinates(coords) {
+                const x = (coords[0] + 17) * 15;
+                const y = (30 - coords[1]) * 15;
+                return [x, y];
+            }
+
+            function drawCountry(geometry) {
+                let path = "";
+                if (geometry.type === "Polygon") {
+                    path = drawPolygon(geometry.coordinates);
+                } else if (geometry.type === "MultiPolygon") {
+                    geometry.coordinates.forEach((polygon) => {
+                        path += drawPolygon(polygon);
+                    });
+                }
+                return path;
+            }
+
+            function drawPolygon(rings) {
+                let path = "";
+                rings.forEach((ring) => {
+                    ring.forEach((coord, index) => {
+                        const [x, y] = projectCoordinates(coord);
+                        path += (index === 0 ? "M" : "L") + x + " " + y;
+                    });
+                    path += "Z";
+                });
+                return path;
+            }
+
+            const africanCountries = {
+                Algeria: ["Algeria"],
+                Angola: ["Angola"],
+                Benin: ["Benin"],
+                Botswana: ["Botswana"],
+                "Burkina Faso": ["Burkina Faso"],
+                Burundi: ["Burundi"],
+                Cameroon: ["Cameroon"],
+                "Cape Verde": ["Cape Verde", "Cabo Verde"],
+                "Central African Republic": ["Central African Republic"],
+                Chad: ["Chad"],
+                Comoros: ["Comoros"],
+                Congo: [
+                    "Congo",
+                    "Republic of the Congo",
+                    "Congo Republic",
+                    "Republic of Congo",
+                ],
+                "Democratic Republic of the Congo": [
+                    "Democratic Republic of the Congo",
+                    "DR Congo",
+                    "DRC",
+                ],
+                Djibouti: ["Djibouti"],
+                Egypt: ["Egypt"],
+                "Equatorial Guinea": ["Equatorial Guinea"],
+                Eritrea: ["Eritrea"],
+                Ethiopia: ["Ethiopia"],
+                Gabon: ["Gabon"],
+                Gambia: ["Gambia"],
+                Ghana: ["Ghana"],
+                Guinea: ["Guinea"],
+                "Guinea-Bissau": ["Guinea-Bissau", "Guinea Bissau"],
+                "Ivory Coast": [
+                    "Ivory Coast",
+                    "Côte d'Ivoire",
+                    "Cote d'Ivoire",
+                ],
+                Kenya: ["Kenya"],
+                Lesotho: ["Lesotho"],
+                Liberia: ["Liberia"],
+                Libya: ["Libya"],
+                Madagascar: ["Madagascar"],
+                Malawi: ["Malawi"],
+                Mali: ["Mali"],
+                Mauritania: ["Mauritania"],
+                Mauritius: ["Mauritius"],
+                Morocco: ["Morocco"],
+                Mozambique: ["Mozambique"],
+                Namibia: ["Namibia"],
+                Niger: ["Niger"],
+                Nigeria: ["Nigeria"],
+                Rwanda: ["Rwanda"],
+                "Sao Tome and Principe": [
+                    "Sao Tome and Principe",
+                    "São Tomé and Príncipe",
+                ],
+                Senegal: ["Senegal"],
+                Seychelles: ["Seychelles"],
+                "Sierra Leone": ["Sierra Leone"],
+                Somalia: ["Somalia"],
+                "South Africa": ["South Africa"],
+                "South Sudan": ["South Sudan"],
+                Sudan: ["Sudan"],
+                Swaziland: ["Swaziland", "eSwatini", "Eswatini"],
+                Tanzania: ["Tanzania", "United Republic of Tanzania"],
+                Togo: ["Togo"],
+                Tunisia: ["Tunisia"],
+                Uganda: ["Uganda"],
+                Zambia: ["Zambia"],
+                Zimbabwe: ["Zimbabwe"],
+                "Western Sahara": ["Western Sahara"],
+                Somaliland: ["Somaliland"],
+            };
+
+            function isAfricanCountry(countryName) {
+                return Object.values(africanCountries).some((aliases) =>
+                    aliases.some(
+                        (alias) =>
+                            alias.toLowerCase() === countryName.toLowerCase()
+                    )
+                );
+            }
+
+            function getStandardCountryName(countryName) {
+                for (const [standard, aliases] of Object.entries(
+                    africanCountries
+                )) {
+                    if (
+                        aliases.some(
+                            (alias) =>
+                                alias.toLowerCase() ===
+                                countryName.toLowerCase()
+                        )
+                    ) {
+                        return standard;
+                    }
+                }
+                return countryName;
+            }
+
+            addToLog("Script started. Attempting to fetch GeoJSON data...");
+
+            fetch(
+                "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson"
+            )
+                .then((response) => {
+                    addToLog(
+                        `Fetch response received. Status: ${response.status}`
+                    );
+                    if (!response.ok) {
+                        throw new Error(
+                            `HTTP error! status: ${response.status}`
+                        );
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    addToLog(
+                        `Data fetched successfully. Processing ${data.features.length} features...`
+                    );
+                    let count = 0;
+                    const processedCountries = new Set();
+                    const missingCountries = new Set(
+                        Object.keys(africanCountries)
+                    );
+
+                    data.features.forEach((feature, index) => {
+                        const countryName = feature.properties.ADMIN;
+                        addToLog(
+                            `Processing feature ${index + 1}: ${countryName}`
+                        );
+                        if (countryName && isAfricanCountry(countryName)) {
+                            const standardName =
+                                getStandardCountryName(countryName);
+                            try {
+                                const path = document.createElementNS(
+                                    svgNS,
+                                    "path"
+                                );
+                                path.setAttribute(
+                                    "d",
+                                    drawCountry(feature.geometry)
+                                );
+                                path.setAttribute("fill", "#FEB24C");
+                                path.setAttribute("stroke", "white");
+                                path.setAttribute("stroke-width", "0.5");
+                                svg.appendChild(path);
+                                count++;
+                                processedCountries.add(standardName);
+                                missingCountries.delete(standardName);
+                                addToLog(`Added ${standardName}`);
+                            } catch (error) {
+                                addToLog(
+                                    `Error adding ${standardName}: ${error.message}`
+                                );
+                            }
+                        } else if (countryName) {
+                            addToLog(`Skipped ${countryName} (not in Africa)`);
+                        } else {
+                            addToLog(
+                                `Skipped feature ${index + 1} (no country name)`
+                            );
+                        }
+                    });
+
+                    addToLog(`Processed ${count} African countries`);
+                    addToLog(
+                        `Countries added: ${Array.from(processedCountries).join(
+                            ", "
+                        )}`
+                    );
+                    addToLog(
+                        `Coun
+                        tries missing: ${Array.from(missingCountries).join(
+                            ", "
+                        )}`
+                    );
+
+                    if (missingCountries.size > 0) {
+                        addToLog("Missing countries details:");
+                        data.features.forEach((feature) => {
+                            const countryName = feature.properties.ADMIN;
+                            if (
+                                missingCountries.has(
+                                    getStandardCountryName(countryName)
+                                )
+                            ) {
+                                addToLog(
+                                    `${countryName}: ${JSON.stringify(
+                                        feature.properties
+                                    )}`
+                                );
+                            }
+                        });
+                    }
+
+                    if (count === 0) {
+                        addToLog(
+                            "No African countries found. Check the isAfricanCountry function."
+                        );
+                    }
+                })
+                .catch((error) => {
+                    addToLog(
+                        `Error fetching or processing data: ${error.message}`
+                    );
+                });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>African Fuel Price Map</title>
+        <link rel="stylesheet" href="css/styles.css" />
+    </head>
+    <body>
+        <div id="map-container">
+            <svg id="map">
+                <defs></defs>
+            </svg>
+            <div id="buttons">
+                <button id="gradientButton" class="circle-button">🌈</button>
+                <button id="vizButton" class="circle-button">V</button>
+                <button id="devModeButton" class="circle-button">🛠️</button>
+                <button id="resetButton" class="circle-button">🔄</button>
+            </div>
+        </div>
+        <div id="log"></div>
+
+        <script src="js/constants.js"></script>
+        <script src="js/utils.js"></script>
+        <script src="js/dataHandler.js"></script>
+        <script src="js/visualizations.js"></script>
+        <script src="js/mapRenderer.js"></script>
+        <script src="js/uiControls.js"></script>
+        <script src="js/main.js"></script>
+    </body>
+</html>

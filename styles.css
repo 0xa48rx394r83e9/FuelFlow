@@ -1,0 +1,94 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+#map-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+#buttons {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.circle-button {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+#log {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 70px;
+    width: 300px;
+    height: 200px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    padding: 10px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+#ui-container {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 200px;
+}
+
+#ui-container button,
+#ui-container input[type="range"] {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+#ui-container label {
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.country-label {
+    font-family: Arial, sans-serif;
+    pointer-events: none; /* Prevents labels from interfering with mouse events */
+}
+
+.country-name {
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.fuel-prices {
+    font-size: 10px;
+}
